@@ -100,7 +100,7 @@ sealed trait Options[+A] { self =>
   final def requires[B](that: Options[B], suchThat: B => Boolean = (_: B) => true): Options[A] =
     Options.Requires(self, that, suchThat)
 
-  final def requiresNot[B](that: Options[B], suchThat: B => Boolean = (_: B) => true): Options[A] =
+  final def requiresNot[B](that: Options[B], suchThat: B => Boolean = (_: B) => true): Options[Option[A]] =
     Options.RequiresNot(self, that, suchThat)
 
   def synopsis: UsageSynopsis
@@ -119,7 +119,7 @@ sealed trait Options[+A] { self =>
     case s @ Single(_, _, _, _)                  => f(initial, s)
     case cons: Options.Cons[a, b]                => cons.right.foldSingle(cons.left.foldSingle(initial)(f))(f)
     case Options.Requires(options, target, _)    => options.foldSingle(initial)(f)
-    case Options.RequiresNot(options, target, _) => options.foldSingle(initial)(f)
+    case rn: Options.RequiresNot[a, b]           => rn.options.foldSingle(initial)(f)
     case Options.Map(value, _)                   => value.foldSingle(initial)(f)
     case Options.WithDefault(value, _, _)        => value.foldSingle(initial)(f)
   }
@@ -291,21 +291,35 @@ object Options {
   }
 
   final case class RequiresNot[A, B](options: Options[A], target: Options[B], predicate: B => Boolean)
-      extends Options[A] {
-    override def modifySingle(f: SingleModifier): Options[A] =
+      extends Options[Option[A]] {
+    override def modifySingle(f: SingleModifier): Options[Option[A]] =
       RequiresNot(options.modifySingle(f), target.modifySingle(f), predicate)
 
     def recognizes(value: String, conf: CliConfig): Option[Int] = options.recognizes(value, conf)
 
     def synopsis: UsageSynopsis = options.synopsis
 
-    def validate(args: List[String], conf: CliConfig): IO[HelpDoc, (List[String], A)] =
-      target
-        .validate(args, conf)
-        .foldM(
-          _ => options.validate(args, conf),
-          _ => IO.fail(p(error("Requires not conditions were not satisfied.")))
+    def validate(args: List[String], conf: CliConfig): IO[HelpDoc, (List[String], Option[A])] = {
+      options.optional("")
+        .validate(args,conf)
+        .foldM[Any,HelpDoc,(List[String], Option[A])](
+          failure => IO.fail(failure),
+          {
+            case success @ (_,value) =>
+              target.validate(args, conf).foldM[Any,HelpDoc,(List[String], Option[A])](
+                _ => IO.succeed(success),
+                _ => {
+                  value match {
+                    case Some(_) =>
+                      IO.fail(p(error("Requires not conditions were not satisfied.")))
+                    case None =>
+                      IO.succeed(success)
+                  }
+                }
+              )
+          }
         )
+    }
 
     override def helpDoc: HelpDoc = options.helpDoc.mapDescriptionList { (span, block) =>
       target.uid match {

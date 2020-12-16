@@ -100,8 +100,16 @@ object OptionsSpec extends DefaultRunnableSpec {
       assertM(r.either)(isLeft)
     },
     testM("test requires not") {
-      val r = l.requiresNot(f).validate(List("--firstname", "John"), CliConfig.default)
-      assertM(r.either)(isLeft)
+      val options = l.requiresNot(f) :: f.optional("firstname is optional")
+      for {
+        v1 <- options.validate(List("--lastname","Doe"), CliConfig.default)
+        v2 <- options.validate(List("--lastname","Doe","--firstname","John"), CliConfig.default).flip
+        v3 <- options.validate(List("--firstname","John"), CliConfig.default)
+      } yield {
+        assert(v1)(equalTo((List.empty[String],(Some("Doe"),None)))) &&
+        assert(v2)(equalTo(HelpDoc.p(HelpDoc.Span.error(HelpDoc.Span.text("Requires not conditions were not satisfied."))))) &&
+        assert(v3)(equalTo((List.empty[String],(None,Some("John")))))
+      }
     },
     testM("returns a HelpDoc if an option is not an exact match, but is close") {
       val r = f.validate(List("--firstme", "Alice"), CliConfig.default)
