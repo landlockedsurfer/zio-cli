@@ -11,13 +11,17 @@ final case class CliConfig(
   caseSensitive: Boolean,
   autoCorrectLimit: Int
 ) {
-  def normalizeCase(text: String): String = if (caseSensitive) text else text.toLowerCase()
-
   def isLongOption(value: String): Boolean = value.trim.matches("^-{2}([^-]|$)")
 
   def isShortOption(value: String): Boolean = value.trim.matches("^-{1}([^-]|$)")
 
   def isOption(value: String): Boolean = isLongOption(value) || isShortOption(value)
+
+  def normalizeCase(text: String): String = if (caseSensitive) text else text.toLowerCase()
+
+  def toCaseSensitive: CliConfig = copy(caseSensitive = true)
+
+  def toCaseInsensitive: CliConfig = copy(caseSensitive = false)
 }
 
 object CliConfig {

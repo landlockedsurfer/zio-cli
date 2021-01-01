@@ -34,8 +34,7 @@ sealed trait Options[+A] { self =>
   final def ::[That, A1 >: A](that: Options[That]): Options[(That, A1)] =
     Options.Cons(that, self)
 
-  final def ||[That, A1 >: A](that: Options[That]): Options[Either[A1, That]] =
-    Options.OrElse(self, that)
+  final def |[A1 >: A](that: Options[A1]): Options[A1] = self.orElse(that)
 
   def ??(that: String): Options[A] =
     modifySingle(new SingleModifier {
@@ -119,6 +118,12 @@ sealed trait Options[+A] { self =>
 
   final def optional(desc: String): Options[Option[A]] = self.map(Some(_)).withDefault(None, desc)
 
+  final def orElse[A1 >: A](that: Options[A1]): Options[A1] =
+    self.orElseEither(that).map(_.merge)
+
+  final def orElseEither[B](that: Options[B]): Options[Either[A, B]] = 
+    Options.OrElse(self, that)
+
   def recognizes(value: String, conf: CliConfig): Option[Int]
 
   def synopsis: UsageSynopsis
@@ -127,6 +132,8 @@ sealed trait Options[+A] { self =>
 
   def validate(args: List[String], conf: CliConfig): IO[HelpDoc, (List[String], A)]
 
+  def withConfig(f: CliConfig => CliConfig): Options[A] = Options.ModifyConfig(self, f)
+
   def withDefault[A1 >: A](value: A1, valueDescription: String): Options[A1] =
     Options.WithDefault(self, value, valueDescription)
 
@@ -134,6 +141,7 @@ sealed trait Options[+A] { self =>
 
   private[cli] def foldSingle[C](initial: C)(f: (C, Single[_]) => C): C = self match {
     case _: Options.Empty.type            => initial
+    case Options.WithC(options,_,_) => options.foldSingle(initial)(f)
     case s @ Single(_, _, _, _)           => f(initial, s)
     case cons: Options.Cons[a, b]         => cons.right.foldSingle(cons.left.foldSingle(initial)(f))(f)
     case orElse: Options.OrElse[a, b]     => orElse.right.foldSingle(orElse.left.foldSingle(initial)(f))(f)
@@ -287,6 +295,20 @@ object Options {
       case Nil  => None
       case list => Some(list.mkString(", "))
     }
+  }
+
+  final case class ModifyConfig[A](value: Options[A], f: CliConfig => CliConfig) extends Options[A] {
+    override def helpDoc: HelpDoc = ???
+
+    override def recognizes(value: String, conf: CliConfig): Option[Int] = ???
+
+    override def synopsis: UsageSynopsis = ???
+
+    override def uid: Option[String] = ???
+
+    override def validate(args: List[String], conf: CliConfig): IO[HelpDoc, (List[String], A)] = ???
+
+    override private[cli] def modifySingle(f: SingleModifier) = ???
   }
 
   final case class Cons[A, B](left: Options[A], right: Options[B]) extends Options[(A, B)] {

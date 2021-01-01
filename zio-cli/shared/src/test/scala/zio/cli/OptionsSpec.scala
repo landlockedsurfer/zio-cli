@@ -97,7 +97,7 @@ object OptionsSpec extends DefaultRunnableSpec {
     },
     suite("orElse")(
       testM("validate orElse on 2 options") {
-        val o = Options.text("string") || Options.integer("integer")
+        val o = Options.text("string") | Options.integer("integer")
         for {
           i <- o.validate(List("--integer", "2"), CliConfig.default)
           s <- o.validate(List("--string", "two"), CliConfig.default)
@@ -107,7 +107,7 @@ object OptionsSpec extends DefaultRunnableSpec {
         }
       },
       testM("validate orElse using fold on 2 options") {
-        val o = Options.text("string") || Options.integer("integer")
+        val o = Options.text("string") | Options.integer("integer")
         val output = o.fold(
           (s: String) => s,
           (n: BigInt) => n.toString
@@ -121,7 +121,7 @@ object OptionsSpec extends DefaultRunnableSpec {
         }
       },
       testM("validate orElse using fold on 3 options") {
-        val o = Options.text("string") || Options.integer("integer") || Options.decimal("bigdecimal")
+        val o = Options.text("string") | Options.integer("integer") | Options.decimal("bigdecimal")
         val output = o.fold(
           (s: String) => s,
           (n: BigInt) => n.toString,
@@ -138,12 +138,12 @@ object OptionsSpec extends DefaultRunnableSpec {
         }
       },
       testM("test orElse options collision") {
-        val o = Options.text("string") || Options.integer("integer")
+        val o = Options.text("string") | Options.integer("integer")
         val r = o.validate(List("--integer", "2", "--string", "two"), CliConfig.default)
         assertM(r.either)(isLeft)
       },
       testM("test orElse with no options given") {
-        val o = Options.text("string") || Options.integer("integer")
+        val o = Options.text("string") | Options.integer("integer")
         val r = o.validate(Nil, CliConfig.default)
         assertM(r.either)(isLeft)
       }
